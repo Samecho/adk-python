@@ -1,4 +1,18 @@
-name: Issue 7247 Linux validation
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: PR 7542 full validation
 permissions:
   contents: read
 env:
@@ -52,15 +66,11 @@ jobs:
     - name: Generate Baseline
       env:
         TARGET_BRANCH: main
-      run: '# Switch to target base branch to generate baseline
+      run: 'set -o pipefail
 
         git checkout 9b0ceecd9e5d0df86261d8f93ab41833f2470892
 
-
         git checkout 60863f042218fe633cdc9b3e8f8ab72c4f7df45d -- pyproject.toml
-
-
-        # Install dependencies for target branch
 
         uv venv .venv
 
@@ -68,34 +78,47 @@ jobs:
 
         uv sync --all-extras $SKIP_PACKAGE_FLAGS
 
+        set +e
 
-        # Run mypy, filter for errors only, remove line numbers, and sort
+        uv run --no-sync mypy --no-incremental . > baseline_mypy.log 2>&1
 
-        # We ignore exit code (|| true) because we expect errors on baseline
+        mypy_status=$?
 
-        uv run mypy --no-incremental . | grep "error:" | sed ''s/:\([0-9]\+\):/::/g'' | sort > baseline_errors.txt || true
+        set -e
 
-        echo "Found $(wc -l < baseline_errors.txt) errors on $TARGET_BRANCH."
+        cat baseline_mypy.log
+
+        if [ "$mypy_status" -gt 1 ]; then exit "$mypy_status"; fi
+
+        grep "error:" baseline_mypy.log | sed ''s/:\([0-9]\+\):/::/g'' | sort > baseline_errors.txt || true
+
+        echo "Baseline errors: $(wc -l < baseline_errors.txt)"
 
         '
     - name: Check PR Branch
-      run: '# Switch back to the PR commit
+      run: 'set -o pipefail
 
         git checkout 60863f042218fe633cdc9b3e8f8ab72c4f7df45d
-
-
-        # Re-sync dependencies in case the PR changed them
 
         source .venv/bin/activate
 
         uv sync --all-extras $SKIP_PACKAGE_FLAGS
 
+        set +e
 
-        # Run mypy on PR code, apply same processing
+        uv run --no-sync mypy --no-incremental . > pr_mypy.log 2>&1
 
-        uv run mypy --no-incremental . | grep "error:" | sed ''s/:\([0-9]\+\):/::/g'' | sort > pr_errors.txt || true
+        mypy_status=$?
 
-        echo "Found $(wc -l < pr_errors.txt) errors on PR branch."
+        set -e
+
+        cat pr_mypy.log
+
+        if [ "$mypy_status" -gt 1 ]; then exit "$mypy_status"; fi
+
+        grep "error:" pr_mypy.log | sed ''s/:\([0-9]\+\):/::/g'' | sort > pr_errors.txt || true
+
+        echo "PR errors: $(wc -l < pr_errors.txt)"
 
         '
     - name: Compare and Fail on New Errors
@@ -182,7 +205,7 @@ jobs:
     - name: List installed packages (before reinstall)
       run: uv pip list
     - name: Run A2A tests against a2a-sdk v0.3
-      run: "set -o pipefail\nuv pip install --reinstall-package a2a-sdk 'a2a-sdk>=0.3.4,<0.4'\nuv pip list\nuv run pytest tests/unittests/a2a \\\n  tests/unittests/integrations/agent_registry/test_agent_registry.py \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
+      run: "set -o pipefail\nuv pip install --reinstall-package a2a-sdk 'a2a-sdk>=0.3.4,<0.4'\nuv run --no-sync python -c \"\nimport importlib.metadata as m\nversion = m.version('a2a-sdk')\nassert version.startswith('0.3.'), f'expected a2a-sdk 0.3.x, got {version}'\nprint('testing against a2a-sdk', version)\n\"\nuv run --no-sync pytest tests/unittests/a2a \\\n  tests/unittests/integrations/agent_registry/test_agent_registry.py \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
     - name: Annotate failing tests
       if: failure()
       run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p' \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g' -e 's/^/::error::/'\n"
