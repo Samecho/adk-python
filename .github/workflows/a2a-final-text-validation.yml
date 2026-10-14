@@ -1,0 +1,235 @@
+name: Issue 7247 Linux validation
+permissions:
+  contents: read
+env:
+  SKIP_PACKAGE_FLAGS: --no-install-package lancedb
+jobs:
+  lint:
+    name: Pre-commit Linter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: 11a2e5fe85b47aba15978599a912ee819b108a67
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Run pre-commit checks
+      uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+      env:
+        SKIP: ''
+  type-check:
+    name: Mypy Check (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: 11a2e5fe85b47aba15978599a912ee819b108a67
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Set the dependency resolution cutoff
+      run: echo "UV_EXCLUDE_NEWER=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+    - name: Generate Baseline
+      env:
+        TARGET_BRANCH: main
+      run: '# Switch to target base branch to generate baseline
+
+        git checkout 9b0ceecd9e5d0df86261d8f93ab41833f2470892
+
+
+        git checkout 11a2e5fe85b47aba15978599a912ee819b108a67 -- pyproject.toml
+
+
+        # Install dependencies for target branch
+
+        uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --all-extras $SKIP_PACKAGE_FLAGS
+
+
+        # Run mypy, filter for errors only, remove line numbers, and sort
+
+        # We ignore exit code (|| true) because we expect errors on baseline
+
+        uv run mypy --no-incremental . | grep "error:" | sed ''s/:\([0-9]\+\):/::/g'' | sort > baseline_errors.txt || true
+
+        echo "Found $(wc -l < baseline_errors.txt) errors on $TARGET_BRANCH."
+
+        '
+    - name: Check PR Branch
+      run: '# Switch back to the PR commit
+
+        git checkout 11a2e5fe85b47aba15978599a912ee819b108a67
+
+
+        # Re-sync dependencies in case the PR changed them
+
+        source .venv/bin/activate
+
+        uv sync --all-extras $SKIP_PACKAGE_FLAGS
+
+
+        # Run mypy on PR code, apply same processing
+
+        uv run mypy --no-incremental . | grep "error:" | sed ''s/:\([0-9]\+\):/::/g'' | sort > pr_errors.txt || true
+
+        echo "Found $(wc -l < pr_errors.txt) errors on PR branch."
+
+        '
+    - name: Compare and Fail on New Errors
+      run: "# 'comm -13' suppresses unique lines in file1 (baseline) and common lines,\n# leaving only lines unique to file2 (PR) -> The new errors.\ncomm -13 baseline_errors.txt pr_errors.txt > new_errors.txt\n\nif [ -s new_errors.txt ]; then\n  echo \"::error::The following NEW mypy errors were introduced:\"\n  cat new_errors.txt\n  exit 1\nelse\n  echo \"Great job! No new mypy errors introduced.\"\nfi\n"
+  unit-test:
+    name: Full tox suite (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    timeout-minutes: 20
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 11a2e5fe85b47aba15978599a912ee819b108a67
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Set the dependency resolution cutoff
+      run: echo "UV_EXCLUDE_NEWER=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages
+      run: uv pip list
+    - name: Run full unit suite with tox
+      run: "set -o pipefail\nversion=\"${{ matrix.python-version }}\"\nuvx --with tox-uv tox -e \"py${version//./}\" \\\n  -x 'testenv.uv_sync_flags=--no-install-package lancedb' \\\n  -x 'testenv.commands=pytest tests/unittests -n auto --tb=short --disable-warnings' \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
+    - name: Annotate failing tests
+      if: failure()
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p' \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g' -e 's/^/::error::/'\n"
+  unit-test-a2a-v0-3:
+    name: A2A v0.3 Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    timeout-minutes: 10
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 11a2e5fe85b47aba15978599a912ee819b108a67
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Set the dependency resolution cutoff
+      run: echo "UV_EXCLUDE_NEWER=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages (before reinstall)
+      run: uv pip list
+    - name: Run A2A tests against a2a-sdk v0.3
+      run: "set -o pipefail\nuv pip install --reinstall-package a2a-sdk 'a2a-sdk>=0.3.4,<0.4'\nuv pip list\nuv run pytest tests/unittests/a2a \\\n  tests/unittests/integrations/agent_registry/test_agent_registry.py \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
+    - name: Annotate failing tests
+      if: failure()
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p' \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g' -e 's/^/::error::/'\n"
+  unit-test-mcp-v2:
+    name: MCP v2 Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    timeout-minutes: 10
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 11a2e5fe85b47aba15978599a912ee819b108a67
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Set the dependency resolution cutoff
+      run: echo "UV_EXCLUDE_NEWER=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages (before reinstall)
+      run: uv pip list
+    - name: Run MCP tests against mcp v2
+      run: "set -o pipefail\nuv pip install --reinstall-package mcp 'mcp>=2,<3'\nuv pip list\nuv run --no-sync python -c \"\nimport importlib.metadata as m\nversion = m.version('mcp')\nassert version.startswith('2.'), f'expected mcp 2.x, got {version}'\nprint('testing against mcp', version)\n\"\nuv run --no-sync pytest tests/unittests/tools/mcp_tool \\\n  tests/unittests/tools/test_load_mcp_resource_tool.py \\\n  tests/unittests/telemetry/test_spans.py \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
+    - name: Annotate failing tests
+      if: failure()
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p' \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g' -e 's/^/::error::/'\n"
+'on':
+  push:
+    branches:
+    - codex/a2a-final-text-validation
