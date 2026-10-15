@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -37,12 +38,12 @@ from google.adk.agents.run_config import RunConfig
 from google.adk.auth import AuthCredential
 from google.adk.auth import AuthCredentialTypes
 from google.adk.auth import OAuth2Auth
-import google.adk.auth.auth_handler as auth_module
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.openapi_tool.openapi_spec_parser.openapi_toolset import OpenAPIToolset
+import google.adk.tools.openapi_tool.openapi_spec_parser.tool_auth_handler as auth_module
 from google.genai import types
 import httpx
 from requests import Response
@@ -168,8 +169,9 @@ async def main():
           )
       })
   result = {
-      'validated_commit': '9e9c039f2488abf56efa9f8e0837410f2ecb191a',
+      'validated_commit': '8d9f57d2af8641da78d5b1689739676f35da3f69',
       'loaded_module': str(loaded),
+      'module_sha256': hashlib.sha256(loaded.read_text().encode()).hexdigest(),
       'token_calls': token_calls,
       'api_calls': api_calls,
       'requested_auth_configs': requests,
