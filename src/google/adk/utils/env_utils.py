@@ -21,7 +21,6 @@ Please do not rely on the implementation details.
 from __future__ import annotations
 
 import os
-import warnings
 
 
 def is_env_enabled(env_var_name: str, default: str = '0') -> bool:
@@ -69,11 +68,5 @@ def is_enterprise_mode_enabled() -> bool:
   if 'GOOGLE_GENAI_USE_ENTERPRISE' in os.environ:
     return is_env_enabled('GOOGLE_GENAI_USE_ENTERPRISE')
   if 'GOOGLE_GENAI_USE_VERTEXAI' in os.environ:
-    warnings.warn(
-        'GOOGLE_GENAI_USE_VERTEXAI is deprecated, please use'
-        ' GOOGLE_GENAI_USE_ENTERPRISE instead',
-        DeprecationWarning,
-        stacklevel=2,
-    )
     return is_env_enabled('GOOGLE_GENAI_USE_VERTEXAI')
   return False

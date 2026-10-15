@@ -59,21 +59,43 @@ def test_is_enterprise_mode_enabled_via_enterprise_env(monkeypatch):
   assert is_enterprise_mode_enabled() is True
 
 
-def test_is_enterprise_mode_enabled_falls_back_to_vertexai_with_warning(
-    monkeypatch,
+@pytest.mark.parametrize(
+    'value,expected',
+    [
+        ('true', True),
+        ('TRUE', True),
+        ('1', True),
+        ('false', False),
+        ('0', False),
+        ('', False),
+    ],
+)
+def test_is_enterprise_mode_enabled_accepts_vertexai_alias_without_warning(
+    monkeypatch, value, expected
 ):
-  """The deprecated GOOGLE_GENAI_USE_VERTEXAI still enables enterprise mode and warns."""
+  """The compatibility alias selects the backend without a runtime warning."""
   monkeypatch.delenv('GOOGLE_GENAI_USE_ENTERPRISE', raising=False)
-  monkeypatch.setenv('GOOGLE_GENAI_USE_VERTEXAI', 'true')
+  monkeypatch.setenv('GOOGLE_GENAI_USE_VERTEXAI', value)
 
-  with warnings.catch_warnings(record=True) as caught:
-    warnings.simplefilter('always')
-    result = is_enterprise_mode_enabled()
+  with warnings.catch_warnings():
+    warnings.simplefilter('error')
+    assert is_enterprise_mode_enabled() is expected
 
-  assert result is True
-  assert len(caught) == 1
-  assert issubclass(caught[-1].category, DeprecationWarning)
-  assert 'GOOGLE_GENAI_USE_VERTEXAI is deprecated' in str(caught[-1].message)
+
+@pytest.mark.parametrize(
+    'enterprise,expected', [('true', True), ('false', False), ('', False)]
+)
+@pytest.mark.parametrize('vertexai', ['true', 'false', ''])
+def test_enterprise_env_takes_precedence_over_vertexai_alias(
+    monkeypatch, enterprise, vertexai, expected
+):
+  """An explicitly set preferred variable wins, even when false or empty."""
+  monkeypatch.setenv('GOOGLE_GENAI_USE_ENTERPRISE', enterprise)
+  monkeypatch.setenv('GOOGLE_GENAI_USE_VERTEXAI', vertexai)
+
+  with warnings.catch_warnings():
+    warnings.simplefilter('error')
+    assert is_enterprise_mode_enabled() is expected
 
 
 def test_is_enterprise_mode_enabled_defaults_to_false(monkeypatch):
