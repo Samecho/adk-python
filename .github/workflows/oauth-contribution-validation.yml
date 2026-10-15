@@ -27,7 +27,7 @@ jobs:
       with:
         persist-credentials: false
         fetch-depth: 0
-        ref: 9e9c039f2488abf56efa9f8e0837410f2ecb191a
+        ref: 8d9f57d2af8641da78d5b1689739676f35da3f69
     - name: Install the latest version of uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
       with:
@@ -52,7 +52,7 @@ jobs:
       with:
         persist-credentials: false
         fetch-depth: 0
-        ref: 9e9c039f2488abf56efa9f8e0837410f2ecb191a
+        ref: 8d9f57d2af8641da78d5b1689739676f35da3f69
     - name: Set up Python
       uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
@@ -70,7 +70,7 @@ jobs:
 
         git checkout e8c4bacdfe675ceb5adcaf24ea005af94d271c68
 
-        git checkout 9e9c039f2488abf56efa9f8e0837410f2ecb191a -- pyproject.toml
+        git checkout 8d9f57d2af8641da78d5b1689739676f35da3f69 -- pyproject.toml
 
         uv venv .venv
 
@@ -98,7 +98,7 @@ jobs:
     - name: Check PR Branch
       run: 'set -o pipefail
 
-        git checkout 9e9c039f2488abf56efa9f8e0837410f2ecb191a
+        git checkout 8d9f57d2af8641da78d5b1689739676f35da3f69
 
         source .venv/bin/activate
 
@@ -140,7 +140,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         persist-credentials: false
-        ref: 9e9c039f2488abf56efa9f8e0837410f2ecb191a
+        ref: 8d9f57d2af8641da78d5b1689739676f35da3f69
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
@@ -183,7 +183,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         persist-credentials: false
-        ref: 9e9c039f2488abf56efa9f8e0837410f2ecb191a
+        ref: 8d9f57d2af8641da78d5b1689739676f35da3f69
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
@@ -226,7 +226,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         persist-credentials: false
-        ref: 9e9c039f2488abf56efa9f8e0837410f2ecb191a
+        ref: 8d9f57d2af8641da78d5b1689739676f35da3f69
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
