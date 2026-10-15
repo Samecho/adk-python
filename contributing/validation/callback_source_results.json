@@ -1,0 +1,48 @@
+{
+  "loaded_module": "<source>/google/adk/utils/_callback_pipeline.py",
+  "cases": [
+    {
+      "case": "default_off",
+      "callbacks_executed": 8,
+      "callback_spans": 0,
+      "callback_parents": {},
+      "final_output": "done"
+    },
+    {
+      "case": "env_on",
+      "callbacks_executed": 8,
+      "callback_spans": 8,
+      "callback_parents": {
+        "execute_callback before_agent": "invoke_agent guardrail_agent",
+        "execute_callback before_model": "call_llm",
+        "execute_callback after_model": "call_llm",
+        "execute_callback before_tool": "execute_tool add_one",
+        "execute_callback after_tool": "execute_tool add_one",
+        "execute_callback after_agent": "invoke_agent guardrail_agent"
+      },
+      "final_output": "done"
+    },
+    {
+      "case": "request_on",
+      "callbacks_executed": 8,
+      "callback_spans": 8,
+      "callback_parents": {
+        "execute_callback before_agent": "invoke_agent guardrail_agent",
+        "execute_callback before_model": "call_llm",
+        "execute_callback after_model": "call_llm",
+        "execute_callback before_tool": "execute_tool add_one",
+        "execute_callback after_tool": "execute_tool add_one",
+        "execute_callback after_agent": "invoke_agent guardrail_agent"
+      },
+      "final_output": "done"
+    },
+    {
+      "case": "request_off",
+      "callbacks_executed": 8,
+      "callback_spans": 0,
+      "callback_parents": {},
+      "final_output": "done"
+    }
+  ],
+  "validated_commit": "37a71cfeebd0d96b59aadca5ace4c3356ca3cf3a"
+}
