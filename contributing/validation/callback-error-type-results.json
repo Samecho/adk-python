@@ -1,0 +1,460 @@
+{
+  "source_head": "b18276649c038335868a084811d34465590a2cb7",
+  "python": "3.13.13",
+  "wheel_sha256": "1f60a589b73943d51e7f0b98ef8739311a5287be629cdd2e8d859033cde1d74e",
+  "regression_before": {
+    "failed_missing_error_type": 4,
+    "passed_telemetry_disabled": 4
+  },
+  "local_tests": {
+    "callback_tool_import_loading_passed": 94,
+    "telemetry_passed": 895,
+    "telemetry_expected_failures": 7,
+    "pre_commit_passed": true,
+    "changed_source_mypy_passed": true
+  },
+  "source_runner_success": [
+    {
+      "case": "default_off",
+      "callbacks_executed": 8,
+      "callback_spans": 0,
+      "callback_parents": {},
+      "final_output": "done"
+    },
+    {
+      "case": "env_on",
+      "callbacks_executed": 8,
+      "callback_spans": 8,
+      "callback_parents": {
+        "execute_callback before_agent": "invoke_agent guardrail_agent",
+        "execute_callback before_model": "call_llm",
+        "execute_callback after_model": "call_llm",
+        "execute_callback before_tool": "execute_tool add_one",
+        "execute_callback after_tool": "execute_tool add_one",
+        "execute_callback after_agent": "invoke_agent guardrail_agent"
+      },
+      "final_output": "done"
+    },
+    {
+      "case": "request_on",
+      "callbacks_executed": 8,
+      "callback_spans": 8,
+      "callback_parents": {
+        "execute_callback before_agent": "invoke_agent guardrail_agent",
+        "execute_callback before_model": "call_llm",
+        "execute_callback after_model": "call_llm",
+        "execute_callback before_tool": "execute_tool add_one",
+        "execute_callback after_tool": "execute_tool add_one",
+        "execute_callback after_agent": "invoke_agent guardrail_agent"
+      },
+      "final_output": "done"
+    },
+    {
+      "case": "request_off",
+      "callbacks_executed": 8,
+      "callback_spans": 0,
+      "callback_parents": {},
+      "final_output": "done"
+    }
+  ],
+  "source_runner_errors": [
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    }
+  ],
+  "wheel_runner_success": [
+    {
+      "case": "default_off",
+      "callbacks_executed": 8,
+      "callback_spans": 0,
+      "callback_parents": {},
+      "final_output": "done"
+    },
+    {
+      "case": "env_on",
+      "callbacks_executed": 8,
+      "callback_spans": 8,
+      "callback_parents": {
+        "execute_callback before_agent": "invoke_agent guardrail_agent",
+        "execute_callback before_model": "call_llm",
+        "execute_callback after_model": "call_llm",
+        "execute_callback before_tool": "execute_tool add_one",
+        "execute_callback after_tool": "execute_tool add_one",
+        "execute_callback after_agent": "invoke_agent guardrail_agent"
+      },
+      "final_output": "done"
+    },
+    {
+      "case": "request_on",
+      "callbacks_executed": 8,
+      "callback_spans": 8,
+      "callback_parents": {
+        "execute_callback before_agent": "invoke_agent guardrail_agent",
+        "execute_callback before_model": "call_llm",
+        "execute_callback after_model": "call_llm",
+        "execute_callback before_tool": "execute_tool add_one",
+        "execute_callback after_tool": "execute_tool add_one",
+        "execute_callback after_agent": "invoke_agent guardrail_agent"
+      },
+      "final_output": "done"
+    },
+    {
+      "case": "request_off",
+      "callbacks_executed": 8,
+      "callback_spans": 0,
+      "callback_parents": {},
+      "final_output": "done"
+    }
+  ],
+  "wheel_runner_errors": [
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "1",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": false,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 0,
+      "attributes": {},
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "sync",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "ValueError",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "ValueError"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    },
+    {
+      "schema": "2",
+      "telemetry_enabled": true,
+      "callback": "async",
+      "expected_error_type": "429",
+      "callback_spans": 1,
+      "attributes": {
+        "error.type": "429"
+      },
+      "original_error_propagated": true,
+      "model_called": false
+    }
+  ]
+}
