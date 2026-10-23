@@ -278,7 +278,7 @@ jobs:
 
         wheel_env="$RUNNER_TEMP/notification-wheel"
 
-        uv venv "$wheel_env"
+        uv venv --python "${{ matrix.python-version }}" "$wheel_env"
 
         major="${{ matrix.mcp-major }}"
 
@@ -293,3 +293,4 @@ jobs:
   push:
     branches:
     - codex/6385-validation
+  workflow_dispatch: {}
