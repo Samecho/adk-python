@@ -30,6 +30,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger('google_adk.' + __name__)
 
+_DEFAULT_INSTRUCTION = (
+    'The following content is from your previous conversations with the user.\n'
+    "They may be useful for answering the user's current query."
+)
+
 
 class PreloadMemoryTool(BaseTool):
   """A tool that preloads the memory for the current user.
@@ -40,10 +45,18 @@ class PreloadMemoryTool(BaseTool):
   NOTE: Currently this tool only uses text part from the memory.
   """
 
-  def __init__(self) -> None:
+  def __init__(self, *, instruction: str = _DEFAULT_INSTRUCTION) -> None:
+    """Initializes the memory preloader.
+
+    Args:
+      instruction: Introduction placed before the recalled memory block. The
+        default describes memories as previous conversations. An empty string
+        omits the introduction without removing the memory block.
+    """
     # Name and description are not used because this tool only
     # changes llm_request.
     super().__init__(name='preload_memory', description='preload_memory')
+    self._instruction = instruction
 
   @override
   async def process_llm_request(
@@ -83,12 +96,12 @@ class PreloadMemoryTool(BaseTool):
       return
 
     full_memory_text = '\n'.join(memory_text_lines)
-    memory_context = f"""The following content is from your previous conversations with the user.
-They may be useful for answering the user's current query.
-<PAST_CONVERSATIONS>
+    memory_context = f"""<PAST_CONVERSATIONS>
 {full_memory_text}
 </PAST_CONVERSATIONS>
 """
+    if self._instruction:
+      memory_context = f'{self._instruction}\n{memory_context}'
     llm_request._insert_transient_user_content([  # pylint: disable=protected-access
         types.Content(
             role='user', parts=[types.Part.from_text(text=memory_context)]
