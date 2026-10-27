@@ -44,6 +44,56 @@ def _memory(text: str) -> MemoryEntry:
   )
 
 
+@pytest.mark.parametrize(
+    'instruction',
+    [
+        'Use these remembered preferences when answering.',
+        'Remembered topics: {preferences}\nUse only relevant details.',
+        '',
+    ],
+)
+@pytest.mark.asyncio
+async def test_preload_memory_custom_instruction(instruction: str) -> None:
+  """A custom introduction leaves the recalled memory block intact."""
+  request = LlmRequest(contents=[types.UserContent('current query')])
+  tool = PreloadMemoryTool(instruction=instruction)
+
+  await tool.process_llm_request(
+      tool_context=_tool_context(_memory('likes tea')),
+      llm_request=request,
+  )
+
+  memory_block = (
+      '<PAST_CONVERSATIONS>\n'
+      'Time: 2026-07-13T12:00:00Z\n'
+      'user: likes tea\n'
+      '</PAST_CONVERSATIONS>\n'
+  )
+  expected = f'{instruction}\n{memory_block}' if instruction else memory_block
+  assert request.contents[0].role == 'user'
+  assert request.contents[0].parts[0].text == expected
+  assert request.contents[1] == types.UserContent('current query')
+  assert request.config.system_instruction is None
+
+
+@pytest.mark.asyncio
+async def test_preload_memory_default_instruction_is_unchanged() -> None:
+  """The default tool keeps the original introduction and memory formatting."""
+  request = LlmRequest()
+
+  await PreloadMemoryTool().process_llm_request(
+      tool_context=_tool_context(_memory('likes tea')),
+      llm_request=request,
+  )
+
+  assert request.contents[0].parts[0].text == (
+      'The following content is from your previous conversations with the'
+      " user.\nThey may be useful for answering the user's current"
+      ' query.\n<PAST_CONVERSATIONS>\nTime: 2026-07-13T12:00:00Z\nuser: likes'
+      ' tea\n</PAST_CONVERSATIONS>\n'
+  )
+
+
 @pytest.mark.parametrize('thought', [True, False, None])
 @pytest.mark.asyncio
 async def test_preload_memory_preserves_visible_text_only(
