@@ -1,0 +1,311 @@
+name: Issue 6984 legacy Vertex schema validation
+permissions:
+  contents: read
+env:
+  SKIP_PACKAGE_FLAGS: --no-install-package lancedb
+  UV_EXCLUDE_NEWER: '2026-10-28T09:17:17Z'
+jobs:
+  lint:
+    name: Pre-commit Linter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: 2b161a33d6789b5f0da637771e9afcc303281082
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Run pre-commit checks
+      uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+      env:
+        SKIP: ''
+  type-check:
+    name: Mypy Check (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: 2b161a33d6789b5f0da637771e9afcc303281082
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Generate Baseline
+      env:
+        TARGET_BRANCH: main
+      run: 'set -o pipefail
+
+        git checkout 1d81896aa081e7b2e50b3a4a227f7c6933805752
+
+        git checkout 2b161a33d6789b5f0da637771e9afcc303281082 -- pyproject.toml
+
+        uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --all-extras $SKIP_PACKAGE_FLAGS
+
+        set +e
+
+        uv run --no-sync mypy --no-incremental . > baseline_mypy.log 2>&1
+
+        mypy_status=$?
+
+        set -e
+
+        cat baseline_mypy.log
+
+        if [ "$mypy_status" -gt 1 ]; then exit "$mypy_status"; fi
+
+        grep "error:" baseline_mypy.log | sed ''s/:\([0-9]\+\):/::/g'' | sort > baseline_errors.txt ||
+        true
+
+        echo "Baseline errors: $(wc -l < baseline_errors.txt)"
+
+        '
+    - name: Check PR Branch
+      run: 'set -o pipefail
+
+        git checkout 2b161a33d6789b5f0da637771e9afcc303281082
+
+        source .venv/bin/activate
+
+        uv sync --all-extras $SKIP_PACKAGE_FLAGS
+
+        set +e
+
+        uv run --no-sync mypy --no-incremental . > pr_mypy.log 2>&1
+
+        mypy_status=$?
+
+        set -e
+
+        cat pr_mypy.log
+
+        if [ "$mypy_status" -gt 1 ]; then exit "$mypy_status"; fi
+
+        grep "error:" pr_mypy.log | sed ''s/:\([0-9]\+\):/::/g'' | sort > pr_errors.txt || true
+
+        echo "PR errors: $(wc -l < pr_errors.txt)"
+
+        '
+    - name: Compare and Fail on New Errors
+      run: "# 'comm -13' suppresses unique lines in file1 (baseline) and common lines,\n# leaving only\
+        \ lines unique to file2 (PR) -> The new errors.\ncomm -13 baseline_errors.txt pr_errors.txt >\
+        \ new_errors.txt\n\nif [ -s new_errors.txt ]; then\n  echo \"::error::The following NEW mypy errors\
+        \ were introduced:\"\n  cat new_errors.txt\n  exit 1\nelse\n  echo \"Great job! No new mypy errors\
+        \ introduced.\"\nfi\n"
+  unit-test:
+    name: Full tox suite (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    timeout-minutes: 20
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 2b161a33d6789b5f0da637771e9afcc303281082
+        fetch-depth: 0
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages
+      run: uv pip list
+    - name: Run full unit suite with tox
+      run: "set -o pipefail\nversion=\"${{ matrix.python-version }}\"\nuvx --with tox-uv tox -e \"py${version//./}\"\
+        \ \\\n  -x 'testenv.uv_sync_flags=--no-install-package=lancedb' \\\n  -x \"testenv.commands=pytest\
+        \ tests/unittests -n auto --tb=short --disable-warnings --junitxml=$RUNNER_TEMP/candidate.xml\"\
+        \ \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
+    - name: Annotate failing tests
+      if: failure()
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p'\
+        \ \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g'\
+        \ -e 's/^/::error::/'\n"
+    - name: Compare any failure against unchanged main
+      if: failure()
+      run: "set -euo pipefail\n[ -f \"$RUNNER_TEMP/candidate.xml\" ] || exit 1\ngit fetch --no-tags origin\
+        \ \"${{ github.sha }}\"\ngit show FETCH_HEAD:.validation/verify_baseline_failures.py > \"$RUNNER_TEMP/verify_baseline_failures.py\"\
+        \ngit checkout 1d81896aa081e7b2e50b3a4a227f7c6933805752\nversion=\"${{ matrix.python-version }}\"\
+        \n\".tox/py${version//./}/bin/python\" \"$RUNNER_TEMP/verify_baseline_failures.py\" \\\n  \"$RUNNER_TEMP/pytest.log\"\
+        \ \"$RUNNER_TEMP/candidate.xml\" \"$RUNNER_TEMP/baseline.xml\"\n"
+  unit-test-a2a-v0-3:
+    name: A2A v0.3 Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    timeout-minutes: 10
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 2b161a33d6789b5f0da637771e9afcc303281082
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages (before reinstall)
+      run: uv pip list
+    - name: Run A2A tests against a2a-sdk v0.3
+      run: "set -o pipefail\nuv pip install --reinstall-package a2a-sdk 'a2a-sdk>=0.3.4,<0.4'\nuv run\
+        \ --no-sync python -c \"\nimport importlib.metadata as m\nversion = m.version('a2a-sdk')\nassert\
+        \ version.startswith('0.3.'), f'expected a2a-sdk 0.3.x, got {version}'\nprint('testing against\
+        \ a2a-sdk', version)\n\"\nuv run --no-sync pytest tests/unittests/a2a \\\n  tests/unittests/integrations/agent_registry/test_agent_registry.py\
+        \ \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\n"
+    - name: Annotate failing tests
+      if: failure()
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p'\
+        \ \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g'\
+        \ -e 's/^/::error::/'\n"
+  unit-test-mcp-v2:
+    name: MCP v2 compatibility (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+    timeout-minutes: 15
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 2b161a33d6789b5f0da637771e9afcc303281082
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages (before reinstall)
+      run: uv pip list
+    - name: Run MCP tests against the selected SDK major
+      run: 'set -o pipefail
+
+        major="2"
+
+        next=$((major + 1))
+
+        uv pip install --reinstall-package mcp "mcp>=${major},<${next}"
+
+        uv run --no-sync python -c "import importlib.metadata as m; v=m.version(''mcp''); assert v.startswith(''${major}.''),
+        v; print(''testing against mcp'', v)"
+
+        uv run --no-sync pytest tests/unittests/tools/mcp_tool   tests/unittests/tools/test_load_mcp_resource_tool.py   tests/unittests/telemetry/test_spans.py   tests/unittests/test_import_loading.py   |
+        tee "$RUNNER_TEMP/pytest.log"
+
+        '
+    - name: Annotate failing tests
+      if: failure()
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p'\
+        \ \"$RUNNER_TEMP/pytest.log\" \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g'\
+        \ -e 's/^/::error::/'\n"
+  wheel-e2e:
+    name: Installed wheel Vertex declaration E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: 2b161a33d6789b5f0da637771e9afcc303281082
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Verify real Runner and Vertex SDK requests from the installed wheel
+      run: 'set -euo pipefail
+
+        git fetch --no-tags origin "${{ github.sha }}"
+
+        git show FETCH_HEAD:.validation/vertex_schema_e2e.py > "$RUNNER_TEMP/vertex_schema_e2e.py"
+
+        uv build --wheel --out-dir "$RUNNER_TEMP/dist"
+
+        wheel_env="$RUNNER_TEMP/vertex-wheel"
+
+        uv venv --python 3.11 "$wheel_env"
+
+        uv pip install --python "$wheel_env/bin/python" "$RUNNER_TEMP"/dist/*.whl
+
+        cd "$RUNNER_TEMP"
+
+        "$wheel_env/bin/python" "$RUNNER_TEMP/vertex_schema_e2e.py" --expect-installed
+
+        '
+'on':
+  push:
+    branches:
+    - codex/6984-validation
