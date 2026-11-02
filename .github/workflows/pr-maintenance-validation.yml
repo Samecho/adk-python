@@ -1,0 +1,223 @@
+name: Existing PR maintenance validation
+permissions:
+  contents: read
+env:
+  SKIP_PACKAGE_FLAGS: --no-install-package lancedb
+  UV_EXCLUDE_NEWER: '2026-11-02T18:01:06Z'
+jobs:
+  lint:
+    name: Pre-commit Linter PR ${{ matrix.target.pr }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: ${{ matrix.target.head }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Check added source files against current main
+      run: 'git diff --name-only --diff-filter=AR e44b31675e51e69a5929158ff1f3d63fd3c4777e HEAD -- src/google/adk
+        > "$RUNNER_TEMP/added-files.txt"
+
+        python3 scripts/check_new_py_files.py --new-dir . --added-files-from "$RUNNER_TEMP/added-files.txt"
+
+        '
+    - name: Run pre-commit checks
+      uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+      env:
+        SKIP: check-new-py-prefix
+      with:
+        extra_args: --from-ref e44b31675e51e69a5929158ff1f3d63fd3c4777e --to-ref ${{ matrix.target.head }} --show-diff-on-failure
+    strategy:
+      fail-fast: false
+      matrix:
+        target: &id001
+        - pr: 7544
+          head: b6c0ef963d3ca16d6b2f5e973f13fd59cf9b54e1
+        - pr: 7755
+          head: f5c19459134524d78ff033b88204a9635235443d
+  type-check:
+    name: Mypy Check (Python ${{ matrix.python-version }}) PR ${{ matrix.target.pr }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        target: *id001
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: ${{ matrix.target.head }}
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Generate Baseline
+      env:
+        TARGET_BRANCH: main
+      run: 'set -o pipefail
+
+        git checkout e44b31675e51e69a5929158ff1f3d63fd3c4777e
+
+        git checkout ${{ matrix.target.head }} -- pyproject.toml
+
+        uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --all-extras $SKIP_PACKAGE_FLAGS
+
+        set +e
+
+        uv run --no-sync mypy --no-incremental . > baseline_mypy.log 2>&1
+
+        mypy_status=$?
+
+        set -e
+
+        cat baseline_mypy.log
+
+        if [ "$mypy_status" -gt 1 ]; then exit "$mypy_status"; fi
+
+        grep "error:" baseline_mypy.log | sed ''s/:\([0-9]\+\):/::/g'' | sort > baseline_errors.txt || true
+
+        echo "Baseline errors: $(wc -l < baseline_errors.txt)"
+
+        '
+    - name: Check PR Branch
+      run: 'set -o pipefail
+
+        git checkout ${{ matrix.target.head }}
+
+        source .venv/bin/activate
+
+        uv sync --all-extras $SKIP_PACKAGE_FLAGS
+
+        set +e
+
+        uv run --no-sync mypy --no-incremental . > pr_mypy.log 2>&1
+
+        mypy_status=$?
+
+        set -e
+
+        cat pr_mypy.log
+
+        if [ "$mypy_status" -gt 1 ]; then exit "$mypy_status"; fi
+
+        grep "error:" pr_mypy.log | sed ''s/:\([0-9]\+\):/::/g'' | sort > pr_errors.txt || true
+
+        echo "PR errors: $(wc -l < pr_errors.txt)"
+
+        '
+    - name: Compare and Fail on New Errors
+      run: "# 'comm -13' suppresses unique lines in file1 (baseline) and common lines,\n# leaving only lines unique\
+        \ to file2 (PR) -> The new errors.\ncomm -13 baseline_errors.txt pr_errors.txt > new_errors.txt\n\nif [\
+        \ -s new_errors.txt ]; then\n  echo \"::error::The following NEW mypy errors were introduced:\"\n  cat new_errors.txt\n\
+        \  exit 1\nelse\n  echo \"Great job! No new mypy errors introduced.\"\nfi\n"
+  unit-test:
+    name: Full tox suite (Python ${{ matrix.python-version }}) PR ${{ matrix.target.pr }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - '3.11'
+        - '3.12'
+        - '3.13'
+        - '3.14'
+        target: *id001
+    timeout-minutes: 20
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: ${{ matrix.target.head }}
+        fetch-depth: 0
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Install dependencies
+      run: 'uv venv .venv
+
+        source .venv/bin/activate
+
+        uv sync --extra test $SKIP_PACKAGE_FLAGS
+
+        '
+    - name: List installed packages
+      run: uv pip list
+    - name: Run full unit suite with tox
+      run: "set -o pipefail\nversion=\"${{ matrix.python-version }}\"\nuvx --with tox-uv tox -e \"py${version//./}\"\
+        \ \\\n  -x 'testenv.uv_sync_flags=--no-install-package=lancedb' \\\n  -x \"testenv.commands=pytest tests/unittests\
+        \ -n auto --tb=short --disable-warnings --junitxml=$RUNNER_TEMP/candidate.xml\" \\\n  | tee \"$RUNNER_TEMP/pytest.log\"\
+        \n"
+      id: suite
+      continue-on-error: true
+    - name: Annotate failing tests
+      if: steps.suite.outcome == 'failure'
+      run: "[ -f \"$RUNNER_TEMP/pytest.log\" ] || exit 0\nsed -n '/^=* short test summary info =*$/,$p' \"$RUNNER_TEMP/pytest.log\"\
+        \ \\\n  | grep -E '^(FAILED|ERROR) ' | head -n 10 \\\n  | sed -e 's/%/%25/g' -e 's/^/::error::/'\n"
+    - name: Compare any failure against unchanged main
+      if: steps.suite.outcome == 'failure'
+      run: "set -euo pipefail\n[ -f \"$RUNNER_TEMP/candidate.xml\" ] || exit 1\ngit fetch --no-tags origin \"${{\
+        \ github.sha }}\"\ngit show FETCH_HEAD:.validation/verify_baseline_failures.py > \"$RUNNER_TEMP/verify_baseline_failures.py\"\
+        \ngit checkout e44b31675e51e69a5929158ff1f3d63fd3c4777e\nversion=\"${{ matrix.python-version }}\"\n\".tox/py${version//./}/bin/python\"\
+        \ \"$RUNNER_TEMP/verify_baseline_failures.py\" \\\n  \"$RUNNER_TEMP/pytest.log\" \"$RUNNER_TEMP/candidate.xml\"\
+        \ \"$RUNNER_TEMP/baseline.xml\"\n"
+    - name: Record full-suite outcome
+      if: always()
+      run: "echo \"PR ${{ matrix.target.pr }}, Python ${{ matrix.python-version }}\" >> \"$GITHUB_STEP_SUMMARY\"\
+        \necho \"Candidate suite outcome: ${{ steps.suite.outcome }}\" >> \"$GITHUB_STEP_SUMMARY\"\nif [ \"${{ steps.suite.outcome\
+        \ }}\" = failure ]; then\n  echo 'Baseline comparison above must pass with identical failing test IDs and\
+        \ messages.' >> \"$GITHUB_STEP_SUMMARY\"\nfi\n"
+  wheel-e2e:
+    name: Installed wheel E2E PR ${{ matrix.target.pr }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+        ref: ${{ matrix.target.head }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+      with:
+        enable-cache: true
+    - name: Verify installed wheel behavior
+      run: "set -euo pipefail\ngit fetch --no-tags origin \"${{ github.sha }}\"\ngit show FETCH_HEAD:.validation/callback_e2e.py\
+        \ > \"$RUNNER_TEMP/callback_e2e.py\"\ngit show FETCH_HEAD:.validation/sqlite_e2e.py > \"$RUNNER_TEMP/sqlite_e2e.py\"\
+        \nuv build --wheel --out-dir \"$RUNNER_TEMP/dist\"\nwheel_env=\"$RUNNER_TEMP/maintenance-wheel\"\nuv venv\
+        \ --python 3.11 \"$wheel_env\"\nuv pip install --python \"$wheel_env/bin/python\" \"$RUNNER_TEMP\"/dist/*.whl\n\
+        cd \"$RUNNER_TEMP\"\nif [ '${{ matrix.target.pr }}' = 7544 ]; then\n  \"$wheel_env/bin/python\" \"$RUNNER_TEMP/callback_e2e.py\"\
+        \ --result \"$RUNNER_TEMP/callback-e2e.json\"\nelse\n  \"$wheel_env/bin/python\" \"$RUNNER_TEMP/sqlite_e2e.py\"\
+        \nfi\n"
+    strategy:
+      fail-fast: false
+      matrix:
+        target: *id001
+'on':
+  push:
+    branches:
+    - codex/pr-maintenance-20261102-validation
